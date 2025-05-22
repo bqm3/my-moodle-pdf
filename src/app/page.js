@@ -1,95 +1,92 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
+import React, { useState } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+import "react-pdf/dist/esm/Page/AnnotationLayer.css";
+
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>src/app/page.js</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [file, setFile] = useState(
+    "https://api.office.pmcweb.vn/upload/filevb/Du_an_Manh_test/YCTT-Du_an_Manh_test-22_05_2025%2011_48.pdf"
+  );
+  const [numPages, setNumPages] = useState(null);
+  const [pdfDimensions, setPdfDimensions] = useState({ width: 1, height: 1 });
+  const [positions, setPositions] = useState([]);
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  const onDocumentLoadSuccess = ({ numPages }) => {
+    setNumPages(numPages);
+  };
+
+  const onPageLoadSuccess = (page) => {
+    const viewport = page.getViewport({ scale: 1 });
+    setPdfDimensions({
+      width: viewport.width, // chính xác theo point
+      height: viewport.height,
+    });
+  };
+
+  const handlePDFClick = (event, pageNumber) => {
+    const canvas = event.target.closest("canvas");
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+
+    const scaleX = pdfDimensions.width / rect.width;
+    const scaleY = pdfDimensions.height / rect.height;
+
+    const x = (event.clientX - rect.left) * scaleX;
+    const yFromTop = (event.clientY - rect.top) * scaleY;
+
+    // ✅ Chuyển sang toạ độ gốc iText: (0,0) ở góc trái dưới
+    const x_iText = x;
+    const y_iText = pdfDimensions.height - yFromTop;
+
+    const fieldName = "signature";
+    setPositions((prev) => [
+      ...prev,
+      { fieldName, x: x_iText, y: y_iText, pageNumber },
+    ]);
+
+    console.log("📌 Vị trí (iText):", {
+      fieldName,
+      x: x_iText.toFixed(2),
+      y: y_iText.toFixed(2),
+      page: pageNumber,
+    });
+  };
+
+  return (
+    <div style={{ padding: 20 }}>
+      <h1>📄 Xem PDF từ Google Drive</h1>
+      <p>Click vào bất kỳ chỗ nào trên trang để lấy tọa độ PDF (points)</p>
+
+      <div style={{ maxWidth: "595px", marginTop: 20 }}>
+        <Document file={file} onLoadSuccess={onDocumentLoadSuccess}>
+          {Array.from(new Array(numPages || 0), (_, index) => (
+            <Page
+              key={`page_${index + 1}`}
+              pageNumber={index + 1}
+              width={595}
+              onLoadSuccess={onPageLoadSuccess}
+              onClick={(event) => handlePDFClick(event, index + 1)}
             />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
+          ))}
+        </Document>
+      </div>
+
+      {positions.length > 0 && (
+        <div style={{ marginTop: 30 }}>
+          <h3>📍 Tọa độ đã chọn:</h3>
+          <ul>
+            {positions.map(({ fieldName, x, y, pageNumber }, idx) => (
+              <li key={idx}>
+                <b>{fieldName}</b> – Trang: {pageNumber} – X: {x.toFixed(2)} –
+                Y: {y.toFixed(2)}
+              </li>
+            ))}
+          </ul>
         </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
     </div>
   );
 }
